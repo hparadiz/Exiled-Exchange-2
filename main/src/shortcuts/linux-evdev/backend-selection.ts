@@ -1,11 +1,13 @@
-import type {
-  LinuxEvdevBackendSelection,
-  LinuxEvdevHelperConfig,
-} from "./types";
+import type { LinuxShortcutBackendConfig } from "../../../../ipc/types";
+
+interface LinuxEvdevBackendSelection {
+  useHelper: boolean;
+  reason: "disabled" | "explicit" | "register-failed" | "unsupported-platform";
+}
 
 export function selectLinuxEvdevBackend(
   platform: NodeJS.Platform,
-  config: LinuxEvdevHelperConfig | undefined,
+  config: LinuxShortcutBackendConfig | undefined,
   failedElectronRegistrations: number,
 ): LinuxEvdevBackendSelection {
   if (platform !== "linux") {

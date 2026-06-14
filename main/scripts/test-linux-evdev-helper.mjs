@@ -5,6 +5,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  buildHelperConfig,
+  discoverEventDevices,
+} from "linux-evdev-wayland-helper";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -37,107 +41,22 @@ function defaultHelperPath() {
   const helperName = process.argv.includes("--debug-events")
     ? "linux-evdev-helper-debug"
     : "linux-evdev-helper";
-  const source = path.resolve(rootDir, "..", "native", "linux-evdev-helper", helperName);
-  if (fs.existsSync(source)) return source;
-  return path.resolve(rootDir, "dist", helperName);
+  const packageHelper = path.resolve(
+    rootDir,
+    "node_modules",
+    "linux-evdev-wayland-helper",
+    "native",
+    "linux-evdev-helper",
+    helperName,
+  );
+  if (fs.existsSync(packageHelper)) return packageHelper;
+  const distHelper = path.resolve(rootDir, "dist", helperName);
+  if (fs.existsSync(distHelper)) return distHelper;
+  return path.resolve(rootDir, "..", "native", "linux-evdev-helper", helperName);
 }
 
 function discoverKeyboardEventDevices() {
-  const devices = new Set();
-  if (process.argv.includes("--all-devices")) {
-    try {
-      for (const entry of fs.readdirSync("/dev/input")) {
-        if (/^event[0-9]+$/.test(entry)) devices.add(path.join("/dev/input", entry));
-      }
-    } catch {}
-    return Array.from(devices).sort();
-  }
-
-  for (const dir of ["/dev/input/by-path", "/dev/input/by-id"]) {
-    try {
-      for (const entry of fs.readdirSync(dir)) {
-        if (!entry.endsWith("-event-kbd")) continue;
-        const device = fs.realpathSync(path.join(dir, entry));
-        if (/^\/dev\/input\/event[0-9]+$/.test(device)) devices.add(device);
-      }
-    } catch {}
-  }
-
-  if (!devices.size) {
-    try {
-      for (const entry of fs.readdirSync("/dev/input")) {
-        if (/^event[0-9]+$/.test(entry)) devices.add(path.join("/dev/input", entry));
-      }
-    } catch {}
-  }
-
-  return Array.from(devices).sort();
-}
-
-function normalizeKey(key) {
-  const aliases = new Map([
-    ["Esc", "Escape"],
-    ["Del", "Delete"],
-    ["Ins", "Insert"],
-    ["Return", "Enter"],
-    ["Left", "ArrowLeft"],
-    ["Right", "ArrowRight"],
-    ["Up", "ArrowUp"],
-    ["Down", "ArrowDown"],
-    [".", "Period"],
-    [",", "Comma"],
-    ["/", "Slash"],
-    ["\\", "Backslash"],
-    ["-", "Minus"],
-    ["=", "Equal"],
-    ["`", "Backquote"],
-    ["'", "Quote"],
-    [";", "Semicolon"],
-    ["[", "BracketLeft"],
-    ["]", "BracketRight"],
-  ]);
-
-  if (aliases.has(key)) return aliases.get(key);
-  if (/^[a-z]$/.test(key)) return key.toUpperCase();
-  return key;
-}
-
-function parseAccelerator(accelerator) {
-  const parts = accelerator
-    .split("+")
-    .map((part) => part.trim())
-    .filter(Boolean);
-  const mods = {
-    ctrl: false,
-    shift: false,
-    alt: false,
-    meta: false,
-  };
-  let key = null;
-
-  for (const part of parts) {
-    const lower = part.toLowerCase();
-    if (lower === "ctrl" || lower === "control" || lower === "cmdorctrl") mods.ctrl = true;
-    else if (lower === "shift") mods.shift = true;
-    else if (lower === "alt" || lower === "option") mods.alt = true;
-    else if (lower === "super" || lower === "meta" || lower === "cmd" || lower === "command") mods.meta = true;
-    else if (key == null) key = normalizeKey(part);
-    else throw new Error(`unsupported accelerator with multiple non-modifier keys: ${accelerator}`);
-  }
-
-  if (!key) throw new Error(`modifier-only accelerator is not supported: ${accelerator}`);
-
-  const normalized = [
-    mods.ctrl ? "Ctrl" : null,
-    mods.shift ? "Shift" : null,
-    mods.alt ? "Alt" : null,
-    mods.meta ? "Super" : null,
-    key,
-  ]
-    .filter(Boolean)
-    .join(" + ");
-
-  return { accelerator: normalized, key, ...mods };
+  return discoverEventDevices();
 }
 
 function addAction(actions, shortcut, id, type) {
@@ -217,21 +136,15 @@ function launchConfigFromSettings(config) {
   }
   if (!configuredHotkeys.length) throw new Error("no settings hotkeys found for helper");
 
-  return {
-    backend: "linux-evdev-helper",
-    parentPid: process.pid,
+  return buildHelperConfig({
     devices,
     enableUinput: false,
-    hotkeys: configuredHotkeys.map((hotkey) => ({
-      ...hotkey,
-      ...parseAccelerator(hotkey.accelerator),
-    })),
-  };
+    hotkeys: configuredHotkeys,
+  }, process.pid);
 }
 
 function spawnCommand(helperPath, elevation) {
-  const helperArgs = ["--replace-existing"];
-  if (process.argv.includes("--debug-events")) helperArgs.push("--debug-events");
+  const helperArgs = [];
   if (elevation === "none") return { command: helperPath, args: helperArgs };
   if (elevation === "sudo") return { command: "sudo", args: ["-A", helperPath, ...helperArgs] };
   return { command: "pkexec", args: [helperPath, ...helperArgs] };
@@ -239,13 +152,16 @@ function spawnCommand(helperPath, elevation) {
 
 function formatEvent(event) {
   if (event.type === "hotkey") {
-    return `HOTKEY id=${event.id} accelerator=${event.accelerator} ts=${event.ts}`;
+    return `HOTKEY id=${event.id} accelerator=${event.accelerator} ts=${event.timestamp}`;
   }
   if (event.type === "ready") {
     return `READY devices=${event.devices.length} hotkeys=${event.hotkeys}`;
   }
+  if (event.type === "configured") {
+    return `CONFIGURED hotkeys=${event.hotkeys}`;
+  }
   if (event.type === "error") {
-    return `ERROR code=${event.code} message=${event.message}${event.device ? ` device=${event.device}` : ""}`;
+    return `ERROR code=${event.code} message=${event.message}${event.detail ? ` detail=${event.detail}` : ""}`;
   }
   return JSON.stringify(event);
 }

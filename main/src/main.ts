@@ -2,9 +2,8 @@
 
 import { app, systemPreferences } from "electron";
 import { uIOhook } from "uiohook-napi";
-import fs from "node:fs";
 import os from "node:os";
-import path from "node:path";
+import { discoverEventDevices } from "linux-evdev-wayland-helper";
 import {
   startServer,
   eventPipe,
@@ -185,26 +184,5 @@ function mergeDiscoveredInputDevices(configured: string[] | undefined) {
 }
 
 function discoverKeyboardEventDevices() {
-  const devices = new Set<string>();
-  for (const dir of ["/dev/input/by-path", "/dev/input/by-id"]) {
-    try {
-      for (const entry of fs.readdirSync(dir)) {
-        if (!entry.endsWith("-event-kbd")) continue;
-        const device = fs.realpathSync(path.join(dir, entry));
-        if (/^\/dev\/input\/event[0-9]+$/.test(device)) {
-          devices.add(device);
-        }
-      }
-    } catch {}
-  }
-
-  try {
-    for (const entry of fs.readdirSync("/dev/input")) {
-      if (/^event[0-9]+$/.test(entry)) {
-        devices.add(path.join("/dev/input", entry));
-      }
-    }
-  } catch {}
-
-  return Array.from(devices).sort();
+  return discoverEventDevices();
 }

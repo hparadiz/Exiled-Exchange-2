@@ -1087,7 +1087,7 @@ describe("clientLog", () => {
     calls.forEach((call) => {
       const arg = call[0].payload as unknown as { data: SkillPointEvent };
       expect(arg.data.points).toBe(2);
-      expect(arg.data.pointType).toBeOneOf(["passive", "weapon-set"]);
+      expect(["passive", "weapon-set"]).toContain(arg.data.pointType);
     });
   });
 

@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node build/script.mjs",
     "build": "tsc --noEmit && node build/script.mjs --prod",
-    "build:linux-evdev-helper": "make -C ../native/linux-evdev-helper",
+    "build:linux-evdev-helper": "make -C node_modules/linux-evdev-wayland-helper/native/linux-evdev-helper",
     "test:linux-evdev-helper": "node scripts/test-linux-evdev-helper.mjs",
     "package": "electron-builder build",
     "lint": "eslint src",
@@ -23,6 +23,7 @@
   "main": "dist/main.js",
   "dependencies": {
     "electron-overlay-window": "4.0.2",
+    "linux-evdev-wayland-helper": "^0.1.0",
     "uiohook-napi": "1.5.x"
   },
   "devDependencies": {
@@ -36,8 +37,8 @@
     "electron-devtools-installer": "^4.0.0",
     "electron-updater": "^6.8.3",
     "esbuild": "^0.28.0",
-    "ini": "^6.0.0",
     "eslint-config-prettier": "^9.1.0",
+    "ini": "^6.0.0",
     "prettier": "3.4.2",
     "typescript": "5.9.x",
     "ws": "^8.16.0"

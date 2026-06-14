@@ -1,5 +1,11 @@
-import { screen, globalShortcut } from "electron";
+import { app, screen, globalShortcut } from "electron";
+import fs from "node:fs";
+import path from "node:path";
 import { uIOhook, UiohookKey, UiohookWheelEvent } from "uiohook-napi";
+import {
+  LinuxEvdevHelper,
+  type LinuxEvdevHelperEvent,
+} from "linux-evdev-wayland-helper";
 import {
   isModKey,
   KeyToElectron,
@@ -20,21 +26,23 @@ import type { OverlayWindow } from "../windowing/OverlayWindow";
 import type { GameWindow } from "../windowing/GameWindow";
 import type { GameConfig } from "../host-files/GameConfig";
 import type { ServerEvents } from "../server";
-import { LinuxEvdevHelperProcess } from "./linux-evdev/helper-process";
 import { selectLinuxEvdevBackend } from "./linux-evdev/backend-selection";
-import { resolveHelperPath } from "./linux-evdev/helper-process";
-import { buildHelperSpawnCommand } from "./linux-evdev/launch-command";
-import type { HelperEvent, ShortcutActionWithId } from "./linux-evdev/types";
 
 type UiohookKeyT = keyof typeof UiohookKey;
 const UiohookToName = Object.fromEntries(
   Object.entries(UiohookKey).map(([k, v]) => [v, k]),
 );
 
+interface ShortcutActionWithId {
+  id: string;
+  entry: ShortcutAction;
+}
+
 export class Shortcuts {
   private actions: ShortcutAction[] = [];
   private linuxShortcutBackend?: LinuxShortcutBackendConfig;
-  private linuxHelper?: LinuxEvdevHelperProcess;
+  private linuxHelper?: LinuxEvdevHelper;
+  private linuxHelperActions = new Map<string, ShortcutAction>();
   private linuxHelperError: string | null = null;
   private stashScroll = false;
   private logKeys = false;
@@ -154,14 +162,16 @@ export class Shortcuts {
     linuxShortcutBackend?: LinuxShortcutBackendConfig,
   ) {
     const shouldRefreshActiveBackend = this.poeWindow.isActive;
+    const previousLinuxBackendKey = linuxBackendRuntimeKey(
+      this.linuxShortcutBackend,
+    );
     if (shouldRefreshActiveBackend && this.linuxHelper) {
       this.logger.write(
-        "info [linux-evdev-helper] Restarting helper because hotkeys changed.",
+        "info [linux-evdev-helper] Updating helper because hotkeys changed.",
       );
     }
 
-    this.stopLinuxHelper();
-    if (shouldRefreshActiveBackend) {
+    if (shouldRefreshActiveBackend && !this.linuxHelper) {
       this.unregister();
     }
 
@@ -227,10 +237,20 @@ export class Shortcuts {
     );
 
     if (this.shouldRunLinuxHelper()) {
+      if (
+        this.linuxHelper &&
+        previousLinuxBackendKey ===
+          linuxBackendRuntimeKey(this.linuxShortcutBackend)
+      ) {
+        this.updateLinuxHelperHotkeys();
+        return;
+      }
       this.startLinuxHelper("wayland");
     } else if (shouldRefreshActiveBackend) {
+      this.stopLinuxHelper();
       this.register();
     } else {
+      this.stopLinuxHelper();
       this.registerOverlayShortcut();
     }
   }
@@ -313,16 +333,14 @@ export class Shortcuts {
 
     const actions = this.actionsWithIds();
     const byId = new Map(actions.map(({ id, entry }) => [id, entry]));
-    this.linuxHelper = new LinuxEvdevHelperProcess(
-      this.logger,
-      this.linuxShortcutBackend,
-      actions,
-    );
+    this.linuxHelperActions = byId;
+    const helper = new LinuxEvdevHelper();
+    this.linuxHelper = helper;
     this.emitHelperDebugEvent({
       kind: "start",
       message: `starting helper via ${reason}`,
     });
-    this.linuxHelper.on("message", (message: HelperEvent) => {
+    helper.on("event", (message: LinuxEvdevHelperEvent) => {
       if (message.type === "ready") {
         this.emitHelperDebugEvent({
           kind: "ready",
@@ -338,10 +356,10 @@ export class Shortcuts {
           kind: "hotkey",
           id: message.id,
           accelerator: message.accelerator,
-          helperTs: message.ts,
+          helperTs: message.timestamp,
           message: `received ${message.accelerator}`,
         });
-        const entry = byId.get(message.id);
+        const entry = this.linuxHelperActions.get(message.id);
         if (!entry) {
           this.logger.write(
             `warn [linux-evdev-helper] Ignoring unknown hotkey id "${message.id}"`,
@@ -359,42 +377,64 @@ export class Shortcuts {
         this.emitHelperDebugEvent({
           kind: "error",
           code: message.code,
-          device: message.device,
           message: message.message,
         });
-      }
-    });
-    this.linuxHelper.on("error-event", (error: Error) => {
-      this.emitHelperDebugEvent({
-        kind: "error",
-        message: error.message,
-      });
-      this.linuxHelperError = "helper process failed to start";
-      this.stopLinuxHelper();
-      if (this.poeWindow.isActive) {
-        this.registerElectronShortcuts();
-      }
-      this.emitHelperStatus();
-    });
-    this.linuxHelper.on(
-      "exit",
-      (code: number | null, signal: string | null) => {
+        this.logger.write(
+          `error [linux-evdev-helper] ${message.code}: ${message.message}${
+            message.detail ? ` (${message.detail})` : ""
+          }`,
+        );
+      } else if (message.type === "exit") {
         this.emitHelperDebugEvent({
           kind: "exit",
-          exitCode: code,
-          signal,
-          message: `helper exited with ${signal ?? `code ${code ?? "unknown"}`}`,
+          exitCode: message.code,
+          signal: message.signal,
+          message: `helper exited with ${
+            message.signal ?? `code ${message.code ?? "unknown"}`
+          }`,
         });
-        this.linuxHelper = undefined;
+        if (this.linuxHelper === helper) {
+          this.linuxHelper = undefined;
+        }
         this.emitHelperStatus();
         if (!this.shouldRunLinuxHelper() && this.poeWindow.isActive) {
           this.registerElectronShortcuts();
         }
-      },
-    );
+      }
+    });
+
+    const hotkeys = actions.map(({ id, entry }) => ({
+      id,
+      accelerator: entry.shortcut,
+      passthrough: true,
+    }));
 
     try {
-      this.linuxHelper.start();
+      const helperPath = resolveLinuxHelperPath(
+        this.linuxShortcutBackend.helperPath,
+      );
+      helper
+        .start({
+          helperPath,
+          devices: this.linuxShortcutBackend.devices,
+          hotkeys,
+          elevation: this.linuxShortcutBackend.elevation ?? "pkexec",
+          enableUinput: false,
+          parentPid: process.pid,
+        })
+        .catch((error) => {
+          if (this.linuxHelper !== helper) return;
+          this.emitHelperDebugEvent({
+            kind: "error",
+            message: error instanceof Error ? error.message : String(error),
+          });
+          this.linuxHelperError = "helper process failed to start";
+          this.stopLinuxHelper();
+          if (!this.shouldRunLinuxHelper() && this.poeWindow.isActive) {
+            this.registerElectronShortcuts();
+          }
+          this.emitHelperStatus();
+        });
     } catch (error) {
       this.linuxHelperError = (error as Error).message;
       this.logger.write(`error [linux-evdev-helper] ${this.linuxHelperError}`);
@@ -407,10 +447,41 @@ export class Shortcuts {
     this.emitHelperStatus();
   }
 
+  private updateLinuxHelperHotkeys() {
+    const actions = this.actionsWithIds();
+    this.linuxHelperActions = new Map(
+      actions.map(({ id, entry }) => [id, entry]),
+    );
+    const hotkeys = actions.map(({ id, entry }) => ({
+      id,
+      accelerator: entry.shortcut,
+      passthrough: true,
+    }));
+
+    this.linuxHelper
+      ?.setHotkeys(hotkeys)
+      .then(() => {
+        this.emitHelperDebugEvent({
+          kind: "ready",
+          message: `updated hotkeys=${hotkeys.length}`,
+        });
+        this.emitHelperStatus();
+      })
+      .catch((error) => {
+        this.logger.write(
+          `error [linux-evdev-helper] failed to update hotkeys: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        this.startLinuxHelper("hotkey-update-failed");
+      });
+  }
+
   private stopLinuxHelper() {
     this.linuxHelper?.removeAllListeners();
-    this.linuxHelper?.stop();
+    void this.linuxHelper?.stop();
     this.linuxHelper = undefined;
+    this.linuxHelperActions.clear();
   }
 
   private actionsWithIds(): ShortcutActionWithId[] {
@@ -446,11 +517,10 @@ export class Shortcuts {
     elevation: LinuxShortcutBackendConfig["elevation"] = "pkexec",
   ) {
     try {
-      const helperPath = resolveHelperPath(
+      const helperPath = resolveLinuxHelperPath(
         this.linuxShortcutBackend?.helperPath,
       );
-      const command = buildHelperSpawnCommand(helperPath, elevation);
-      return [command.command, ...command.args].join(" ");
+      return linuxHelperCommandText(helperPath, elevation);
     } catch (error) {
       return `error: ${(error as Error).message}`;
     }
@@ -562,6 +632,57 @@ export class Shortcuts {
         .catch(() => {});
     }
   }
+}
+
+function resolveLinuxHelperPath(helperPath?: string) {
+  const configured =
+    helperPath ?? process.env.EXILED_EXCHANGE_LINUX_HOTKEY_HELPER;
+  if (configured) {
+    if (!path.isAbsolute(configured)) {
+      throw new Error("linux-evdev-helper helperPath must be absolute");
+    }
+    return configured;
+  }
+
+  if (app.isPackaged) {
+    return path.join(
+      process.resourcesPath,
+      "app.asar.unpacked",
+      "linux-evdev-helper",
+    );
+  }
+
+  const packageHelper = path.resolve(
+    process.cwd(),
+    "node_modules/linux-evdev-wayland-helper/native/linux-evdev-helper/linux-evdev-helper",
+  );
+  if (fs.existsSync(packageHelper)) return packageHelper;
+
+  const distHelper = path.resolve(process.cwd(), "dist/linux-evdev-helper");
+  if (fs.existsSync(distHelper)) return distHelper;
+
+  return packageHelper;
+}
+
+function linuxBackendRuntimeKey(config: LinuxShortcutBackendConfig | undefined) {
+  if (!config || config.backend !== "linux-evdev-helper") return null;
+  return JSON.stringify({
+    elevation: config.elevation ?? "pkexec",
+    helperPath: config.helperPath ?? null,
+    devices: [...(config.devices ?? [])].sort(),
+    enableUinput: config.enableUinput ?? false,
+  });
+}
+
+function linuxHelperCommandText(
+  helperPath: string,
+  elevation: LinuxShortcutBackendConfig["elevation"],
+) {
+  if (elevation === "none") return helperPath;
+  if (elevation === "sudo") {
+    return "error: sudo elevation is not supported; use pkexec or configure device permissions";
+  }
+  return `pkexec ${helperPath}`;
 }
 
 function pressKeysToCopyItemText(

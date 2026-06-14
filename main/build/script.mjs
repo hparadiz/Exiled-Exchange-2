@@ -28,8 +28,11 @@ const visionBuild = await esbuild.build({
   outfile: 'dist/vision.js'
 })
 
-const linuxHelper = path.resolve('../native/linux-evdev-helper/linux-evdev-helper')
-if (process.platform === 'linux' && fs.existsSync(linuxHelper)) {
+const linuxHelperCandidates = [
+  path.resolve('node_modules/linux-evdev-wayland-helper/native/linux-evdev-helper/linux-evdev-helper')
+]
+const linuxHelper = linuxHelperCandidates.find((candidate) => fs.existsSync(candidate))
+if (process.platform === 'linux' && linuxHelper) {
   const dest = 'dist/linux-evdev-helper'
   const temp = `${dest}.${process.pid}.tmp`
   fs.copyFileSync(linuxHelper, temp)
