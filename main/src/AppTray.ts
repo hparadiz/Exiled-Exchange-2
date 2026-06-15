@@ -46,7 +46,7 @@ export class AppTray {
         click: () => {
           if (
             this.openSettings &&
-            (process.env.WAYLAND_DISPLAY || process.env.VITE_DEV_SERVER_URL)
+            (isWaylandSession() || process.env.VITE_DEV_SERVER_URL)
           ) {
             this.openSettings();
             return;
@@ -81,4 +81,11 @@ export class AppTray {
 
     this.tray.setContextMenu(contextMenu);
   }
+}
+
+function isWaylandSession() {
+  return (
+    process.env.XDG_SESSION_TYPE === "wayland" ||
+    Boolean(process.env.WAYLAND_DISPLAY)
+  );
 }

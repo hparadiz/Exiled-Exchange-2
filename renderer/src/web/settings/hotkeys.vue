@@ -59,15 +59,6 @@
           <span v-else>no app hotkeys configured</span>
         </div>
       </div>
-      <div class="mt-4">
-        <div class="mb-1 font-fontin text-base">Helper event log</div>
-        <textarea
-          id="linux-hotkey-helper-event-log"
-          class="h-32 w-full resize-y rounded bg-gray-900 p-2 font-mono text-xs text-gray-200"
-          readonly
-          :value="linuxHotkeyHelperEventLog"
-        />
-      </div>
     </div>
   </div>
 </template>
@@ -148,9 +139,6 @@ const hotkeys = computed<HotkeySchema[]>(() => {
 
 const stashScroll = configModelValue(() => props.config, "stashScroll");
 const linuxHotkeyHelper = computed(() => MainProcess.linuxHotkeyHelper.value);
-const linuxHotkeyHelperEventLog = computed(
-  () => MainProcess.linuxHotkeyHelperEventLog.value,
-);
 
 function restartLinuxHotkeyHelper() {
   MainProcess.sendEvent({

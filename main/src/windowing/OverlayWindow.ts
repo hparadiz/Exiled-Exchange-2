@@ -17,12 +17,10 @@ import type { GameWindow } from "./GameWindow";
 
 export class OverlayWindow {
   public isInteractable = false;
-  public wasUsedRecently = true;
   private window?: BrowserWindow;
   private overlayKey: string = "Shift + Space";
   private isOverlayKeyUsed = false;
   private pendingSettingsOpen = false;
-  private didAutoOpenSettings = false;
   private bypassGameWindow =
     process.env.VITE_DEV_SERVER_URL != null ||
     process.env.EXILED_EXCHANGE_BYPASS_POE_WINDOW === "1";
@@ -38,10 +36,6 @@ export class OverlayWindow {
     );
     this.poeWindow.on("active-change", this.handlePoeWindowActiveChange);
     this.poeWindow.onAttach(this.handleOverlayAttached);
-
-    this.server.onEventAnyClient("CLIENT->MAIN::used-recently", (e) => {
-      this.wasUsedRecently = e.isOverlay;
-    });
 
     if (process.argv.includes("--no-overlay")) return;
 
@@ -79,22 +73,6 @@ export class OverlayWindow {
 
     this.window.webContents.on("before-input-event", this.handleExtraCommands);
     this.window.webContents.on(
-      "console-message",
-      (_event, level, message, line, sourceId) => {
-        this.logger.write(
-          `debug [OverlayRenderer] console(${level}) ${message} (${sourceId}:${line})`,
-        );
-      },
-    );
-    this.window.webContents.on(
-      "did-fail-load",
-      (_event, errorCode, errorDescription, validatedURL) => {
-        this.logger.write(
-          `error [OverlayRenderer] Failed to load ${validatedURL}: ${errorCode} ${errorDescription}`,
-        );
-      },
-    );
-    this.window.webContents.on(
       "did-attach-webview",
       (_, webviewWebContents) => {
         webviewWebContents.on("before-input-event", this.handleExtraCommands);
@@ -113,9 +91,6 @@ export class OverlayWindow {
     this.window.webContents.on("did-finish-load", () => {
       if (this.pendingSettingsOpen) {
         this.emitOpenSettings();
-      } else if (this.bypassGameWindow && !this.didAutoOpenSettings) {
-        this.didAutoOpenSettings = true;
-        this.openSettings();
       }
     });
   }
@@ -137,77 +112,13 @@ export class OverlayWindow {
     }
   }
 
-  async captureDebugPng() {
-    if (!this.window || !process.env.VITE_DEV_SERVER_URL) return null;
-    const image = await this.window.webContents.capturePage();
-    return image.toPNG();
-  }
-
-  async debugState() {
-    if (!this.window || !process.env.VITE_DEV_SERVER_URL) return null;
-    let documentState: unknown = null;
-    try {
-      documentState = await this.window.webContents.executeJavaScript(
-        `(async () => {
-          let mainTs = null;
-          try {
-            const res = await fetch('/src/main.ts');
-            mainTs = {
-              ok: res.ok,
-              status: res.status,
-              contentType: res.headers.get('content-type'),
-              textStart: (await res.text()).slice(0, 500)
-            };
-          } catch (error) {
-            mainTs = { error: String(error) };
-          }
-          return {
-          href: location.href,
-          readyState: document.readyState,
-          bodyText: document.body?.innerText?.slice(0, 2000) ?? null,
-          bodyHtml: document.body?.innerHTML?.slice(0, 2000) ?? null,
-          linuxHotkeyHelperEventLog:
-            document.getElementById('linux-hotkey-helper-event-log')?.value ?? null,
-          boot: window.__EE2_BOOT ?? null,
-          scripts: Array.from(document.scripts).map((script) => ({
-            src: script.src,
-            type: script.type
-          })),
-          resources: performance.getEntriesByType('resource').map((entry) => entry.name).slice(0, 50),
-          mainTs
-        }})()`,
-      );
-    } catch (error) {
-      documentState = { error: (error as Error).message };
-    }
-
-    return {
-      url: this.window.webContents.getURL(),
-      title: this.window.webContents.getTitle(),
-      isLoading: this.window.webContents.isLoading(),
-      isVisible: this.window.isVisible(),
-      bounds: this.window.getBounds(),
-      documentState,
-    };
-  }
-
   assertOverlayActive = () => {
     if (this.bypassGameWindow && this.window) {
       this.isInteractable = true;
-      this.fillMouseDisplay();
-      this.window.setSkipTaskbar(true);
-      if (this.window.isMinimized()) {
-        this.window.restore();
-      }
-      this.window.show();
-      this.window.maximize();
-      this.window.moveTop();
+      this.assertOverlayVisible();
       this.window.focus();
       this.poeWindow.isActive = false;
       this.emitFocusState();
-      if (this.didAutoOpenSettings) {
-        this.emitOpenSettings();
-      }
       return;
     }
 
@@ -216,6 +127,19 @@ export class OverlayWindow {
       OverlayController.activateOverlay();
       this.poeWindow.isActive = false;
     }
+  };
+
+  assertOverlayVisible = () => {
+    if (!this.bypassGameWindow || !this.window) return;
+
+    this.fillMouseDisplay();
+    this.window.setSkipTaskbar(true);
+    if (this.window.isMinimized()) {
+      this.window.restore();
+    }
+    this.window.showInactive();
+    this.window.maximize();
+    this.window.moveTop();
   };
 
   openSettings = () => {

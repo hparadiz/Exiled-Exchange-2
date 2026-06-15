@@ -39,19 +39,6 @@ export interface LinuxHotkeyHelperStatus {
   error: string | null;
 }
 
-export interface LinuxHotkeyHelperDebugEvent {
-  kind: "start" | "ready" | "hotkey" | "error" | "exit";
-  at: number;
-  message: string;
-  id?: string;
-  accelerator?: string;
-  helperTs?: number;
-  code?: string;
-  device?: string;
-  exitCode?: number | null;
-  signal?: string | null;
-}
-
 export interface ShortcutAction {
   shortcut: string;
   keepModKeys?: true;
@@ -126,7 +113,6 @@ export type IpcEvent =
   | IpcClientIsActive
   | IpcLogEntry
   | IpcLinuxHotkeyHelperState
-  | IpcLinuxHotkeyHelperDebugEvent
   | IpcHostConfig
   | IpcWidgetAction
   | IpcOpenSettings
@@ -250,11 +236,6 @@ type IpcUpdaterState = Event<"MAIN->CLIENT::updater-state", UpdateInfo>;
 type IpcLinuxHotkeyHelperState = Event<
   "MAIN->CLIENT::linux-hotkey-helper-state",
   LinuxHotkeyHelperStatus
->;
-
-type IpcLinuxHotkeyHelperDebugEvent = Event<
-  "MAIN->CLIENT::linux-hotkey-helper-debug-event",
-  LinuxHotkeyHelperDebugEvent
 >;
 
 // Hotkeyable actions are defined in `ShortcutAction`.

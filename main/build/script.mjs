@@ -1,8 +1,6 @@
 import child_process from 'child_process'
 import electron from 'electron'
 import esbuild from 'esbuild'
-import fs from 'node:fs'
-import path from 'node:path'
 
 const isDev = !process.argv.includes('--prod')
 const devServerUrl = process.env.VITE_DEV_SERVER_URL || 'http://127.0.0.1:5173'
@@ -28,24 +26,17 @@ const visionBuild = await esbuild.build({
   outfile: 'dist/vision.js'
 })
 
-const linuxHelperCandidates = [
-  path.resolve('node_modules/linux-evdev-wayland-helper/native/linux-evdev-helper/linux-evdev-helper')
-]
-const linuxHelper = linuxHelperCandidates.find((candidate) => fs.existsSync(candidate))
-if (process.platform === 'linux' && linuxHelper) {
-  const dest = 'dist/linux-evdev-helper'
-  const temp = `${dest}.${process.pid}.tmp`
-  fs.copyFileSync(linuxHelper, temp)
-  fs.chmodSync(temp, 0o755)
-  fs.renameSync(temp, dest)
-}
-
 const mainContext = await esbuild.context({
   entryPoints: ['src/main.ts'],
   bundle: true,
   minify: !isDev,
   platform: 'node',
-  external: ['electron', 'uiohook-napi', 'electron-overlay-window'],
+  external: [
+    'electron',
+    'uiohook-napi',
+    'electron-overlay-window',
+    'linux-evdev-wayland-helper'
+  ],
   outfile: 'dist/main.js',
   define: {
     'process.env.STATIC': (isDev) ? '"../build/icons"' : '"."',

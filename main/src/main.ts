@@ -8,8 +8,6 @@ import {
   startServer,
   eventPipe,
   server,
-  setDebugOverlayCaptureProvider,
-  setDebugOverlayStateProvider,
   setLinuxHotkeyHelperStatusProvider,
 } from "./server";
 import { Logger } from "./RemoteLogger";
@@ -102,8 +100,6 @@ let tray: AppTray;
     setTimeout(
       async () => {
         const overlay = new OverlayWindow(eventPipe, logger, poeWindow);
-        setDebugOverlayCaptureProvider(() => overlay.captureDebugPng());
-        setDebugOverlayStateProvider(() => overlay.debugState());
         tray.setOpenSettingsHandler(() => {
           overlay.openSettings();
         });
@@ -158,31 +154,32 @@ let tray: AppTray;
 })();
 
 function defaultWaylandShortcutBackend() {
-  if (process.platform !== "linux" || !process.env.WAYLAND_DISPLAY) {
+  if (process.platform !== "linux" || !isWaylandSession()) {
     return undefined;
   }
-
-  const devices = process.env.EXILED_EXCHANGE_LINUX_HOTKEY_DEVICES
-    ? process.env.EXILED_EXCHANGE_LINUX_HOTKEY_DEVICES.split(",")
-        .map((device) => device.trim())
-        .filter(Boolean)
-    : discoverKeyboardEventDevices();
 
   return {
     backend: "linux-evdev-helper" as const,
     mode: "enabled" as const,
     elevation: "pkexec" as const,
-    devices: mergeDiscoveredInputDevices(devices),
+    devices: mergeDiscoveredInputDevices(
+      process.env.EXILED_EXCHANGE_LINUX_HOTKEY_DEVICES?.split(",")
+        .map((device) => device.trim())
+        .filter(Boolean),
+    ),
     enableUinput: false as const,
   };
 }
 
 function mergeDiscoveredInputDevices(configured: string[] | undefined) {
   return Array.from(
-    new Set([...(configured ?? []), ...discoverKeyboardEventDevices()]),
+    new Set([...(configured ?? []), ...discoverEventDevices()]),
   ).sort();
 }
 
-function discoverKeyboardEventDevices() {
-  return discoverEventDevices();
+function isWaylandSession() {
+  return (
+    process.env.XDG_SESSION_TYPE === "wayland" ||
+    Boolean(process.env.WAYLAND_DISPLAY)
+  );
 }

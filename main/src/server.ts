@@ -19,14 +19,8 @@ import type { Logger } from "./RemoteLogger";
 export const server = createServer();
 const websocketServer = new WebSocketServer({ noServer: true });
 let lastActiveClient: WebSocket;
-let debugOverlayCaptureProvider:
-  | (() => Promise<Buffer | null>)
-  | undefined;
-let debugOverlayStateProvider:
-  | (() => Promise<unknown>)
-  | undefined;
 let linuxHotkeyHelperStatusProvider = (): LinuxHotkeyHelperStatus => ({
-  isWayland: Boolean(process.env.WAYLAND_DISPLAY),
+  isWayland: isWaylandSession(),
   configured: false,
   running: false,
   elevation: "pkexec",
@@ -34,6 +28,13 @@ let linuxHotkeyHelperStatusProvider = (): LinuxHotkeyHelperStatus => ({
   capturing: [],
   error: null,
 });
+
+function isWaylandSession() {
+  return (
+    process.env.XDG_SESSION_TYPE === "wayland" ||
+    Boolean(process.env.WAYLAND_DISPLAY)
+  );
+}
 
 addFileUploadRoutes(server);
 
@@ -104,16 +105,6 @@ export function setLinuxHotkeyHelperStatusProvider(
   linuxHotkeyHelperStatusProvider = provider;
 }
 
-export function setDebugOverlayCaptureProvider(
-  provider: () => Promise<Buffer | null>,
-) {
-  debugOverlayCaptureProvider = provider;
-}
-
-export function setDebugOverlayStateProvider(provider: () => Promise<unknown>) {
-  debugOverlayStateProvider = provider;
-}
-
 server.on("upgrade", (req, socket, head) => {
   if (req.url !== "/events") {
     return req.destroy();
@@ -157,25 +148,6 @@ export async function startServer(
   });
 
   server.addListener("request", async (req, res) => {
-    if (req.url === "/debug/overlay-screenshot" && process.env.VITE_DEV_SERVER_URL) {
-      const image = await debugOverlayCaptureProvider?.();
-      if (!image) {
-        res.statusCode = 404;
-        res.end("overlay window unavailable");
-        return;
-      }
-      res.setHeader("content-type", "image/png");
-      res.end(image);
-      return;
-    }
-
-    if (req.url === "/debug/overlay-state" && process.env.VITE_DEV_SERVER_URL) {
-      const state = await debugOverlayStateProvider?.();
-      res.setHeader("content-type", "application/json");
-      res.end(JSON.stringify(state ?? null));
-      return;
-    }
-
     if (req.url === "/config") {
       res.setHeader("content-type", "application/json");
       const resBody: HostState = {
