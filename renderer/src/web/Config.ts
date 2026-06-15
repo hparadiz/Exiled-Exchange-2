@@ -812,8 +812,7 @@ function getConfigForHost(): HostConfig {
   return {
     shortcuts: actions,
     linuxShortcutBackend:
-      config.linuxShortcutBackend ??
-      linuxShortcutBackendFromEnv(),
+      config.linuxShortcutBackend ?? linuxShortcutBackendFromEnv(),
     restoreClipboard: config.restoreClipboard,
     clientLog: config.clientLog,
     gameConfig: config.gameConfig,

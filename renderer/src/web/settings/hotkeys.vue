@@ -44,9 +44,9 @@
         </div>
         <div class="break-all">
           Command:
-          <code class="rounded bg-gray-900 px-1 py-0.5">{{
-            linuxHotkeyHelper.command ?? "not configured"
-          }}</code>
+          <code class="rounded bg-gray-900 px-1 py-0.5">
+            {{ linuxHotkeyHelper.command ?? "not configured" }}
+          </code>
         </div>
         <div v-if="linuxHotkeyHelper.error" class="text-red-300">
           {{ linuxHotkeyHelper.error }}

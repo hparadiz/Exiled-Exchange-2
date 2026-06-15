@@ -134,22 +134,18 @@ export class Shortcuts {
   }
 
   get helperStatus(): LinuxHotkeyHelperStatus {
-    const isWayland = isWaylandSession();
     const configured =
       process.platform === "linux" &&
       this.linuxShortcutBackend?.backend === "linux-evdev-helper";
     const elevation = this.linuxShortcutBackend?.elevation ?? "pkexec";
-    const command = configured ? this.helperCommandText(elevation) : null;
 
     return {
-      isWayland,
+      isWayland: isWaylandSession(),
       configured,
       running: this.linuxHelperRunning,
       elevation,
-      command,
-      capturing: configured
-        ? this.actions.map((action) => action.shortcut)
-        : [],
+      command: configured ? this.helperCommandText(elevation) : null,
+      capturing: configured ? this.actions.map(({ shortcut }) => shortcut) : [],
       error: this.linuxHelperError,
     };
   }
@@ -262,7 +258,9 @@ export class Shortcuts {
     for (const entry of this.actions) {
       const isOk = globalShortcut.register(
         shortcutToElectron(entry.shortcut),
-        () => this.runAction(entry),
+        () => {
+          this.runAction(entry);
+        },
       );
 
       if (!isOk) {
@@ -288,7 +286,9 @@ export class Shortcuts {
 
     const isOk = globalShortcut.register(
       shortcutToElectron(entry.shortcut),
-      () => this.runAction(entry),
+      () => {
+        this.runAction(entry);
+      },
     );
     if (!isOk) {
       this.logger.write(
@@ -310,7 +310,9 @@ export class Shortcuts {
     const hotkeys = this.buildLinuxHotkeys();
     const helper = this.linuxHelper ?? new LinuxEvdevHelper();
     if (!this.linuxHelper) {
-      helper.on("event", (event) => this.handleLinuxHelperEvent(event, helper));
+      helper.on("event", (event) => {
+        this.handleLinuxHelperEvent(event, helper);
+      });
     }
     this.linuxHelper = helper;
     this.linuxHelperReason = reason;
@@ -321,43 +323,33 @@ export class Shortcuts {
     globalShortcut.unregisterAll();
     this.registerElectronShortcuts();
 
-    try {
-      const helperPath = getConfiguredLinuxHelperPath(
-        this.linuxShortcutBackend.helperPath,
-      );
-      const options = {
-        ...(helperPath ? { helperPath } : {}),
-        devices: this.linuxShortcutBackend.devices,
-        hotkeys,
-        elevation: this.linuxShortcutBackend.elevation ?? "pkexec",
-        enableUinput: false as const,
-        parentPid: process.pid,
-      };
-      helper
-        [this.linuxHelperRunning ? "restart" : "start"](options)
-        .catch((error) => {
-          if (this.linuxHelper !== helper) return;
-          this.logger.write(
-            `error [linux-evdev-helper] ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          );
-          this.linuxHelperError = "helper process failed to start";
-          this.stopLinuxHelper();
-          if (!this.shouldRunLinuxHelper() && this.poeWindow.isActive) {
-            this.registerElectronShortcuts();
-          }
-          this.emitHelperStatus();
-        });
-    } catch (error) {
-      this.linuxHelperError = (error as Error).message;
-      this.logger.write(`error [linux-evdev-helper] ${this.linuxHelperError}`);
-      this.stopLinuxHelper();
-      if (!this.shouldRunLinuxHelper() && this.poeWindow.isActive) {
-        this.registerElectronShortcuts();
-      }
-      this.emitHelperStatus();
-    }
+    const helperPath = getConfiguredLinuxHelperPath(
+      this.linuxShortcutBackend.helperPath,
+    );
+    const options = {
+      ...(helperPath ? { helperPath } : {}),
+      devices: this.linuxShortcutBackend.devices,
+      hotkeys,
+      elevation: this.linuxShortcutBackend.elevation ?? "pkexec",
+      enableUinput: false as const,
+      parentPid: process.pid,
+    };
+    helper[this.linuxHelperRunning ? "restart" : "start"](options).catch(
+      (error) => {
+        if (this.linuxHelper !== helper) return;
+        this.logger.write(
+          `error [linux-evdev-helper] ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        this.linuxHelperError = "helper process failed to start";
+        this.stopLinuxHelper();
+        if (!this.shouldRunLinuxHelper() && this.poeWindow.isActive) {
+          this.registerElectronShortcuts();
+        }
+        this.emitHelperStatus();
+      },
+    );
     this.emitHelperStatus();
   }
 
@@ -633,12 +625,9 @@ function linuxHelperCommandText(
   return `pkexec ${command}`;
 }
 
-function isWaylandSession() {
-  return (
-    process.env.XDG_SESSION_TYPE === "wayland" ||
-    Boolean(process.env.WAYLAND_DISPLAY)
-  );
-}
+const isWaylandSession = () =>
+  process.env.XDG_SESSION_TYPE === "wayland" ||
+  Boolean(process.env.WAYLAND_DISPLAY);
 
 function pressKeysToCopyItemText(
   pressedModKeys: string[] = [],

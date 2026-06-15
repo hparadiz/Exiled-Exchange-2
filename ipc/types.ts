@@ -15,29 +15,31 @@ export interface HostConfig {
   initialDelay: number;
 }
 
-export interface LinuxShortcutBackendConfig {
+export type LinuxHotkeyHelperElevation = "pkexec" | "sudo" | "none";
+export type LinuxShortcutHotkey = {
+  id: string;
+  accelerator: string;
+  passthrough?: boolean;
+};
+export type LinuxShortcutBackendConfig = {
   backend: "linux-evdev-helper";
-  mode?: "enabled" | "fallback";
-  elevation?: "pkexec" | "sudo" | "none";
-  helperPath?: string;
-  devices?: string[];
-  hotkeys?: Array<{
-    id: string;
-    accelerator: string;
-    passthrough?: boolean;
-  }>;
-  enableUinput?: false;
-}
-
-export interface LinuxHotkeyHelperStatus {
-  isWayland: boolean;
-  configured: boolean;
-  running: boolean;
-  elevation: "pkexec" | "sudo" | "none";
+} & Partial<{
+  mode: "enabled" | "fallback";
+  elevation: LinuxHotkeyHelperElevation;
+  helperPath: string;
+  devices: string[];
+  hotkeys: LinuxShortcutHotkey[];
+  enableUinput: false;
+}>;
+export type LinuxHotkeyHelperStatus = Record<
+  "isWayland" | "configured" | "running",
+  boolean
+> & {
+  elevation: LinuxHotkeyHelperElevation;
   command: string | null;
   capturing: string[];
   error: string | null;
-}
+};
 
 export interface ShortcutAction {
   shortcut: string;
@@ -243,11 +245,7 @@ type IpcLinuxHotkeyHelperState = Event<
 type IpcUserAction = Event<
   "CLIENT->MAIN::user-action",
   | {
-      action:
-        | "check-for-update"
-        | "update-and-restart"
-        | "quit"
-        | "restart-linux-hotkey-helper";
+      action: "check-for-update" | "update-and-restart" | "quit" | "restart-linux-hotkey-helper";
     }
   | {
       action: "stash-search";

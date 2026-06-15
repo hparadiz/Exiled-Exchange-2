@@ -154,9 +154,7 @@ let tray: AppTray;
 })();
 
 function defaultWaylandShortcutBackend() {
-  if (process.platform !== "linux" || !isWaylandSession()) {
-    return undefined;
-  }
+  if (process.platform !== "linux" || !isWaylandSession()) return undefined;
 
   return {
     backend: "linux-evdev-helper" as const,
@@ -171,15 +169,12 @@ function defaultWaylandShortcutBackend() {
   };
 }
 
-function mergeDiscoveredInputDevices(configured: string[] | undefined) {
+function mergeDiscoveredInputDevices(configured?: string[]) {
   return Array.from(
     new Set([...(configured ?? []), ...discoverEventDevices()]),
   ).sort();
 }
 
-function isWaylandSession() {
-  return (
-    process.env.XDG_SESSION_TYPE === "wayland" ||
-    Boolean(process.env.WAYLAND_DISPLAY)
-  );
-}
+const isWaylandSession = () =>
+  process.env.XDG_SESSION_TYPE === "wayland" ||
+  Boolean(process.env.WAYLAND_DISPLAY);

@@ -19,6 +19,10 @@ import type { Logger } from "./RemoteLogger";
 export const server = createServer();
 const websocketServer = new WebSocketServer({ noServer: true });
 let lastActiveClient: WebSocket;
+const isWaylandSession = () =>
+  process.env.XDG_SESSION_TYPE === "wayland" ||
+  Boolean(process.env.WAYLAND_DISPLAY);
+
 let linuxHotkeyHelperStatusProvider = (): LinuxHotkeyHelperStatus => ({
   isWayland: isWaylandSession(),
   configured: false,
@@ -28,13 +32,6 @@ let linuxHotkeyHelperStatusProvider = (): LinuxHotkeyHelperStatus => ({
   capturing: [],
   error: null,
 });
-
-function isWaylandSession() {
-  return (
-    process.env.XDG_SESSION_TYPE === "wayland" ||
-    Boolean(process.env.WAYLAND_DISPLAY)
-  );
-}
 
 addFileUploadRoutes(server);
 
