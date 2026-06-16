@@ -660,11 +660,12 @@ function upgradeConfig(_config: Config): Config {
   }
 
   if (config.configVersion < 33) {
-    // NOTE: v0.15.0 || poe0.5.1
+    // NOTE: v0.15.6 || poe0.5.2
     const libraryWidget = config.widgets.find(
       (w) => w.wmType === "library",
     ) as LibraryWidget;
     libraryWidget.selectedProfile = "chaos";
+    libraryWidget.profiles.chaos!.modOpts.generation = true;
 
     config.configVersion = 34;
   }

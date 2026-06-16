@@ -18,6 +18,7 @@ export interface ShortMod {
   roll: Array<number | -999>;
   ref: string[];
   type: string;
+  generation?: string;
 }
 export interface ColumnOpts {
   refName: true;
@@ -39,6 +40,7 @@ export interface ColumnOpts {
     roll: boolean;
     ref: boolean;
     type: boolean;
+    generation: boolean;
   };
 }
 
@@ -171,23 +173,14 @@ export function diffItem(curr: ParsedItem, prev: ParsedItem | null) {
 
 function modToShortMod(mod: ParsedModifier, opts: ColumnOpts): ShortMod {
   if (!opts) throw new Error("ColumnOpts is null");
-  let type: ShortMod["type"];
-  if (
-    mod.info.generation &&
-    mod.info.generation !== "suffix" &&
-    mod.info.generation !== "prefix"
-  ) {
-    type = mod.info.generation;
-  } else {
-    type = mod.info.type;
-  }
 
   return {
     name: mod.info.name,
     tier: mod.info.tier,
     roll: mod.stats.map((s) => s.roll?.value ?? -999),
     ref: mod.stats.map((s) => s.stat.ref),
-    type,
+    type: mod.info.type,
+    generation: mod.info.generation,
   };
 }
 

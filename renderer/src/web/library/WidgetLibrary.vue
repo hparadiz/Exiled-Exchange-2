@@ -126,6 +126,7 @@ export default defineComponent({
               roll: true,
               ref: true,
               type: true,
+              generation: true,
             },
           },
         },
