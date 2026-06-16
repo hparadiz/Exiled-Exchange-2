@@ -140,7 +140,7 @@ export default {
   QUALITY_DIVERGENT: /^(.*) divergent$/,
   QUALITY_PHANTASMAL: /^(.*) fantasmatique$/,
   // [Override]
-  MODIFIER_LINE: /^(?<type>[^"]+)(?:\s+«(?<name>[^»]*)»)?(?:\s*\({0}(?<tier>\d+)\))?(?:\s*\({1}(?<rank>\d+)\))?$/,
+  MODIFIER_LINE: /^(?<type>[^"]+)(?:\s+«(?<name>[^»]*)»)?(?:\s*\(Palier : (?<tier>\d+)\))?(?:\s*\(Rang : (?<rank>\d+)\))?$/,
   MODIFIER_INCREASED: /^Augmentation : (.*)%$/,
   EATER_IMPLICIT: /^Implicite du Mangeur de mondes \((?<rank>.+)\)$/,
   EXARCH_IMPLICIT: /^Implicite de l'Exarque ardent \((?<rank>.+)\)$/,

@@ -77,6 +77,14 @@ export function parseModInfoLine(
         .trim();
       type = ModifierType.Fractured;
     }
+    // mostly for spanish
+    else if (match.groups!.type2?.startsWith(_$.FRACTURED_MODIFIER)) {
+      match.groups!.type2 = match
+        .groups!.type2.slice(_$.FRACTURED_MODIFIER.length)
+        .trim();
+      type = ModifierType.Fractured;
+    }
+
     if (match.groups!.type.startsWith(_$.DESECRATED_MODIFIER)) {
       match.groups!.type = match
         .groups!.type.slice(_$.DESECRATED_MODIFIER.length)
@@ -87,6 +95,22 @@ export function parseModInfoLine(
     } else if (match.groups!.type.startsWith(_$.CRAFTED_MODIFIER)) {
       match.groups!.type = match
         .groups!.type.slice(_$.CRAFTED_MODIFIER.length)
+        .trim();
+      if (type !== ModifierType.Fractured) {
+        type = ModifierType.Crafted;
+      }
+    }
+    // mostly for spanish
+    else if (match.groups!.type2?.startsWith(_$.DESECRATED_MODIFIER)) {
+      match.groups!.type2 = match
+        .groups!.type2.slice(_$.DESECRATED_MODIFIER.length)
+        .trim();
+      if (type !== ModifierType.Fractured) {
+        type = ModifierType.Desecrated;
+      }
+    } else if (match.groups!.type2?.startsWith(_$.CRAFTED_MODIFIER)) {
+      match.groups!.type2 = match
+        .groups!.type2.slice(_$.CRAFTED_MODIFIER.length)
         .trim();
       if (type !== ModifierType.Fractured) {
         type = ModifierType.Crafted;
