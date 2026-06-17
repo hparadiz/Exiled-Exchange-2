@@ -41,13 +41,27 @@ export function createExactStatFilters(
   opts: { searchStatRange: number; defaultAllSelected: boolean },
 ): StatFilter[] {
   performance.mark("create-exact-filters-start");
+  let searchInRange = Math.min(2, opts.searchStatRange);
+  if (item.category === ItemCategory.Tablet) {
+    searchInRange = 0;
+  }
+
   if (item.mapBlighted || item.category === ItemCategory.Invitation) return [];
   if (
     item.isUnidentified &&
     item.rarity === ItemRarity.Unique &&
     !item.isSynthesised
-  )
-    return [];
+  ) {
+    // want implicit here
+
+    return statsByType
+      .filter((mod) => mod.type === ModifierType.Implicit)
+      .map((mod) => calculatedStatToFilter(mod, searchInRange, item))
+      .map((filter) => ({
+        ...filter,
+        disabled: false,
+      }));
+  }
 
   const keepByType = [
     ModifierType.Pseudo,
@@ -83,10 +97,6 @@ export function createExactStatFilters(
 
   if (item.category === ItemCategory.Flask) {
     keepByType.push(ModifierType.Crafted);
-  }
-  let searchInRange = Math.min(2, opts.searchStatRange);
-  if (item.category === ItemCategory.Tablet) {
-    searchInRange = 0;
   }
 
   const ctx: FiltersCreationContext = {
