@@ -101,7 +101,7 @@ export function poeWebApi() {
     case "cmn-Hant":
       return realm === "pc-garena" ? "pathofexile.tw" : "www.pathofexile.com";
     case "ko":
-      return "poe.game.daum.net";
+      return "poe.kakaogames.com";
     case "ja":
       return "jp.pathofexile.com";
     case "de":
