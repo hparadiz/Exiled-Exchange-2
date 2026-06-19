@@ -35,8 +35,14 @@ const props = defineProps<{
 }>();
 
 const relativePos = computed(() => {
-  const localX = clampToViewport(props.position.x - screenOffsetX(), window.innerWidth);
-  const localY = clampToViewport(props.position.y - screenOffsetY(), window.innerHeight);
+  const localX = clampToViewport(
+    props.position.x - screenOffsetX(),
+    window.innerWidth,
+  );
+  const localY = clampToViewport(
+    props.position.y - screenOffsetY(),
+    window.innerHeight,
+  );
 
   return {
     top: `calc(${localY}px - 2.5rem)`,

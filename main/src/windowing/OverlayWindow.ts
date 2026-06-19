@@ -234,7 +234,8 @@ export class OverlayWindow {
   }
 
   private installWaylandBlurHandler() {
-    if (!isWayland() || !this.window || this.waylandBlurHandlerInstalled) return;
+    if (!isWayland() || !this.window || this.waylandBlurHandlerInstalled)
+      return;
 
     this.waylandBlurHandlerInstalled = true;
     this.window.on("blur", () => {

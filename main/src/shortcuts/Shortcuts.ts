@@ -247,9 +247,12 @@ export class Shortcuts {
     }));
 
     const hotkeysKey = JSON.stringify(hotkeys);
-    if (hotkeysKey === this.linuxHelperHotkeysKey && this.linuxHelperRunning) return;
+    if (hotkeysKey === this.linuxHelperHotkeysKey && this.linuxHelperRunning)
+      return;
     this.linuxHelperHotkeysKey = hotkeysKey;
-    this.linuxHelperActions = new Map(eligible.map((action, i) => [`action-${i}`, action]));
+    this.linuxHelperActions = new Map(
+      eligible.map((action, i) => [`action-${i}`, action]),
+    );
 
     if (!this.linuxHelper) {
       this.linuxHelper = new LinuxEvdevHelper();
@@ -269,7 +272,9 @@ export class Shortcuts {
           parentPid: process.pid,
         });
 
-    this.logger.write(`info [linux-evdev-helper] ${this.linuxHelperRunning ? "updating" : "starting"} ${hotkeys.length} hotkeys`);
+    this.logger.write(
+      `info [linux-evdev-helper] ${this.linuxHelperRunning ? "updating" : "starting"} ${hotkeys.length} hotkeys`,
+    );
     work
       .then(() => {
         this.linuxHelperRunning = true;
@@ -277,7 +282,9 @@ export class Shortcuts {
       .catch((error) => {
         this.linuxHelperRunning = false;
         this.linuxHelperHotkeysKey = null;
-        this.logger.write(`error [linux-evdev-helper] ${(error as Error).message}`);
+        this.logger.write(
+          `error [linux-evdev-helper] ${(error as Error).message}`,
+        );
       });
   }
 

@@ -229,7 +229,10 @@ export default defineComponent({
         "left": `${anchor.x}%`,
         "max-width": `${max.w}%`,
         "max-height": `${max.h}%`,
-        "transform": [translate, `translate(${clampOffset.value.x}px, ${clampOffset.value.y}px)`]
+        "transform": [
+          translate,
+          `translate(${clampOffset.value.x}px, ${clampOffset.value.y}px)`,
+        ]
           .filter(Boolean)
           .join(" "),
         "z-index": typeof wmZorder === "number" ? wmZorder : undefined,
