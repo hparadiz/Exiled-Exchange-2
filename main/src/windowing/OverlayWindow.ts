@@ -270,6 +270,10 @@ export class OverlayWindow {
       case "Escape":
       case "Ctrl + W": {
         event.preventDefault();
+        this.server.sendEventTo("broadcast", {
+          name: "MAIN->OVERLAY::hide-exclusive-widget",
+          payload: undefined,
+        });
         process.nextTick(this.assertGameActive);
         break;
       }
