@@ -1,5 +1,7 @@
 import { app, screen, globalShortcut } from "electron";
 import path from "node:path";
+import fs from "node:fs/promises";
+import os from "node:os";
 import {
   LinuxEvdevHelper,
   type LinuxEvdevHelperEvent,
@@ -261,21 +263,28 @@ export class Shortcuts {
       });
     }
 
-    const work = this.linuxHelperRunning
-      ? this.linuxHelper.setHotkeys(hotkeys)
-      : this.linuxHelper.start({
-          helperPath: getLinuxEvdevHelperPath(),
+    const isStarting = !this.linuxHelperRunning;
+    this.logger.write(
+      `info [linux-evdev-helper] ${isStarting ? "starting" : "updating"} ${hotkeys.length} hotkeys`,
+    );
+
+    const doWork = async () => {
+      const helperPath = await stageHelperBinary(getLinuxEvdevHelperPath());
+      if (this.linuxHelperRunning) {
+        await this.linuxHelper!.setHotkeys(hotkeys);
+      } else {
+        await this.linuxHelper!.start({
+          helperPath,
           hotkeys,
           allDevices: true,
           elevation: "pkexec",
           enableUinput: false,
           parentPid: process.pid,
         });
+      }
+    };
 
-    this.logger.write(
-      `info [linux-evdev-helper] ${this.linuxHelperRunning ? "updating" : "starting"} ${hotkeys.length} hotkeys`,
-    );
-    work
+    doWork()
       .then(() => {
         this.linuxHelperRunning = true;
       })
@@ -290,12 +299,14 @@ export class Shortcuts {
 
   private handleLinuxHelperEvent(event: LinuxEvdevHelperEvent) {
     if (event.type === "hotkey") {
-      // Only act on evdev hotkeys when PoE has focus. Once the overlay is
-      // shown, poeWindow.isActive is false and Electron handles keypresses
-      // directly — dispatching here too would double-fire actions.
-      if (!this.poeWindow.isActive) return;
       const entry = this.linuxHelperActions.get(event.id);
-      if (entry) this.runAction(entry);
+      if (!entry) return;
+      // When the overlay is shown without keyboard focus (e.g. --ozone-platform=x11
+      // or any compositor that ignores the activation request), poeWindow.isActive
+      // stays false and blur never fires. Allow toggle-overlay through so the
+      // hotkey can close the overlay it opened. All other actions require PoE focus.
+      if (!this.poeWindow.isActive && entry.action.type !== "toggle-overlay") return;
+      this.runAction(entry);
     } else if (event.type === "exit") {
       this.linuxHelperRunning = false;
       this.linuxHelperHotkeysKey = null;
@@ -397,6 +408,20 @@ function getLinuxEvdevHelperPath(): string | undefined {
     "linux-evdev-helper",
     "linux-evdev-helper",
   );
+}
+
+// When running from an AppImage the helper binary lives inside a FUSE mount
+// that is private to the mounting user. pkexec runs as root and cannot read
+// files from that mount (FUSE does not honour root's DAC bypass without
+// allow_other). Copy the binary to a world-accessible tmp path before exec-ing.
+async function stageHelperBinary(
+  sourcePath: string | undefined,
+): Promise<string | undefined> {
+  if (!sourcePath) return undefined;
+  const dest = path.join(os.tmpdir(), "linux-evdev-helper");
+  await fs.copyFile(sourcePath, dest);
+  await fs.chmod(dest, 0o755);
+  return dest;
 }
 
 function pressKeysToCopyItemText(
