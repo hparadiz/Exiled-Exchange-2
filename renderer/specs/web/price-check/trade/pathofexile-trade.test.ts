@@ -29,7 +29,7 @@ describe("pathofexile-trade tooltip parsing", () => {
     const displayItem = __testExports.parseFetchResult(
       getFetchResult("65c7c4e8"),
     );
-    const tiers = getTiers(displayItem.explicitMods);
+    const tiers = getTiers(displayItem!.explicitMods);
 
     expect(tiers).toEqual(["P2", "S3"]);
   });
@@ -38,7 +38,7 @@ describe("pathofexile-trade tooltip parsing", () => {
     const displayItem = __testExports.parseFetchResult(
       getFetchResult("ece06af2"),
     );
-    const tiers = getTiers(displayItem.explicitMods);
+    const tiers = getTiers(displayItem!.explicitMods);
 
     expect(tiers).toEqual(["P7", "P7", "P5", "S5", "S6"]);
   });
@@ -47,7 +47,7 @@ describe("pathofexile-trade tooltip parsing", () => {
     const displayItem = __testExports.parseFetchResult(
       getFetchResult("2fa2f1ee"),
     );
-    const tiers = getTiers(displayItem.explicitMods);
+    const tiers = getTiers(displayItem!.explicitMods);
 
     expect(tiers).toEqual(["P2 + P5", "P6", "P5", "S4", "S4", "S4"]);
   });
@@ -56,7 +56,7 @@ describe("pathofexile-trade tooltip parsing", () => {
     const displayItem = __testExports.parseFetchResult(
       getFetchResult("91c9f13"),
     );
-    const tiers = getTiers(displayItem.explicitMods);
+    const tiers = getTiers(displayItem!.explicitMods);
 
     expect(tiers).toEqual(["P19", "S1", "S1", "S1"]);
   });

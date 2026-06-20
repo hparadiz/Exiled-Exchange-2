@@ -559,7 +559,7 @@ export interface PricingResult {
   accountName: string;
   accountStatus: "offline" | "online" | "afk";
   ign: string;
-  displayItem: DisplayItem;
+  displayItem?: DisplayItem;
   inDemand?: boolean;
   gone?: boolean;
 }
@@ -1334,7 +1334,12 @@ export async function requestResults(
   }
 
   return data.map<PricingResult>((result) => {
-    const displayItem: DisplayItem = parseFetchResult(result);
+    let displayItem: DisplayItem | undefined;
+    try {
+      displayItem = parseFetchResult(result);
+    } catch (e) {
+      console.error(e);
+    }
 
     let priceCurrencyRank: PricingResult["priceCurrencyRank"];
     if (

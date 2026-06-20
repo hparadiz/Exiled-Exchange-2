@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-row items-start">
+  <div class="flex flex-row items-start" v-if="result.displayItem">
     <div v-if="result.displayItem.icon" class="bg-gray-600 bg-opacity-50">
       <ui-detailed-item-img
         :icon="result.displayItem.icon.url"
@@ -118,28 +118,30 @@ export default defineComponent({
       return translated;
     }
 
-    const sections = [
-      { key: "nameBlock", content: item.nameBlock },
-      { key: "itemProps", content: item.itemProps },
-      { key: "enchantMods", content: item.enchantMods },
-      { key: "runeMods", content: item.runeMods },
-      { key: "grantedSkills", content: item.grantSkill },
-      { key: "implicitMods", content: item.implicitMods },
-      {
-        key: "explicitMods",
-        content: [
-          // ? maybe keep
-          ...(item.fracturedMods ?? []),
-          ...(item.explicitMods ?? []),
-          ...(item.desecratedMods ?? []),
-          ...(item.mutatedMods ?? []),
-          ...(item.veiledMods ?? []),
-        ],
-      },
-      { key: "pseudoMods", content: item.pseudoMods },
-    ];
+    const sections = item
+      ? [
+          { key: "nameBlock", content: item.nameBlock },
+          { key: "itemProps", content: item.itemProps },
+          { key: "enchantMods", content: item.enchantMods },
+          { key: "runeMods", content: item.runeMods },
+          { key: "grantedSkills", content: item.grantSkill },
+          { key: "implicitMods", content: item.implicitMods },
+          {
+            key: "explicitMods",
+            content: [
+              // ? maybe keep
+              ...(item.fracturedMods ?? []),
+              ...(item.explicitMods ?? []),
+              ...(item.desecratedMods ?? []),
+              ...(item.mutatedMods ?? []),
+              ...(item.veiledMods ?? []),
+            ],
+          },
+          { key: "pseudoMods", content: item.pseudoMods },
+        ]
+      : [];
     // each tag gets its own section, since they are footers
-    for (const tag of item.itemTags ?? []) {
+    for (const tag of item?.itemTags ?? []) {
       sections.push({ key: tag.text, content: [tag] });
     }
 
